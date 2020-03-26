@@ -1,14 +1,15 @@
 const {spawn} = require('cross-spawn')
 const commandConvert = require('./command')
 const varValueConvert = require('./variable')
+const getSubstitutionVar = require('./substitution')
 
 module.exports = crossEnv
 
 const envSetterRegex = /(\w+)=('(.*)'|"(.*)"|(.*))/
 
-function crossEnv(args, options = {}) {
+async function crossEnv(args, options = {}) {
   const [envSetters, command, commandArgs] = parseCommand(args)
-  const env = getEnvVars(envSetters)
+  const env = await getEnvVars(envSetters)
   if (command) {
     const proc = spawn(
       // run `path.normalize` for command(on windows)
@@ -83,13 +84,30 @@ function parseCommand(args) {
   return [envSetters, command, commandArgs]
 }
 
-function getEnvVars(envSetters) {
+async function getEnvVars(envSetters) {
   const envVars = {...process.env}
+  const commandSubstitutionRegex = /\$\(.*\)/
+
   if (process.env.APPDATA) {
     envVars.APPDATA = process.env.APPDATA
   }
+
   Object.keys(envSetters).forEach(varName => {
     envVars[varName] = varValueConvert(envSetters[varName], varName)
   })
+
+  // Substituting VAR=$(...) values here
+  const varsToSubstitute = Object.keys(envSetters).filter(varName =>
+    commandSubstitutionRegex.test(envSetters[varName]),
+  )
+
+  const varsSubstituted = await Promise.all(
+    varsToSubstitute.map(varName => getSubstitutionVar(envSetters[varName])),
+  )
+
+  varsToSubstitute.forEach((varName, idx) => {
+    envVars[varName] = varsSubstituted[idx]
+  })
+
   return envVars
 }

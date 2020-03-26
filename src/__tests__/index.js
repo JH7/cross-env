@@ -69,8 +69,8 @@ test(`handles no value after the equals sign`, () => {
   testEnvSetting({FOO_ENV: ''}, 'FOO_ENV=')
 })
 
-test(`handles quoted scripts`, () => {
-  crossEnv(['GREETING=Hi', 'NAME=Joe', 'echo $GREETING && echo $NAME'], {
+test(`handles quoted scripts`, async () => {
+  await crossEnv(['GREETING=Hi', 'NAME=Joe', 'echo $GREETING && echo $NAME'], {
     shell: true,
   })
   expect(crossSpawnMock.spawn).toHaveBeenCalledWith(
@@ -84,9 +84,9 @@ test(`handles quoted scripts`, () => {
   )
 })
 
-test(`handles escaped characters`, () => {
+test(`handles escaped characters`, async () => {
   // this escapes \,",' and $
-  crossEnv(
+  await crossEnv(
     ['GREETING=Hi', 'NAME=Joe', 'echo \\"\\\'\\$GREETING\\\'\\" && echo $NAME'],
     {
       shell: true,
@@ -103,23 +103,23 @@ test(`handles escaped characters`, () => {
   )
 })
 
-test(`does nothing when given no command`, () => {
-  crossEnv([])
+test(`does nothing when given no command`, async () => {
+  await crossEnv([])
   expect(crossSpawnMock.spawn).toHaveBeenCalledTimes(0)
 })
 
-test(`normalizes commands on windows`, () => {
+test(`normalizes commands on windows`, async () => {
   isWindowsMock.mockReturnValue(true)
-  crossEnv(['./cmd.bat'])
+  await crossEnv(['./cmd.bat'])
   expect(crossSpawnMock.spawn).toHaveBeenCalledWith('cmd.bat', [], {
     stdio: 'inherit',
     env: {...process.env},
   })
 })
 
-test(`does not normalize command arguments on windows`, () => {
+test(`does not normalize command arguments on windows`, async () => {
   isWindowsMock.mockReturnValue(true)
-  crossEnv(['echo', 'http://example.com'])
+  await crossEnv(['echo', 'http://example.com'])
   expect(crossSpawnMock.spawn).toHaveBeenCalledWith(
     'echo',
     ['http://example.com'],
@@ -130,8 +130,8 @@ test(`does not normalize command arguments on windows`, () => {
   )
 })
 
-test(`propagates kill signals`, () => {
-  testEnvSetting({FOO_ENV: 'foo=bar'}, 'FOO_ENV="foo=bar"')
+test(`propagates kill signals`, async () => {
+  await testEnvSetting({FOO_ENV: 'foo=bar'}, 'FOO_ENV="foo=bar"')
 
   process.emit('SIGTERM')
   process.emit('SIGINT')
@@ -144,9 +144,9 @@ test(`propagates kill signals`, () => {
   expect(spawned.kill).toHaveBeenCalledWith('SIGBREAK')
 })
 
-test(`keeps backslashes`, () => {
+test(`keeps backslashes`, async () => {
   isWindowsMock.mockReturnValue(true)
-  crossEnv(['echo', '\\\\\\\\someshare\\\\somefolder'])
+  await crossEnv(['echo', '\\\\\\\\someshare\\\\somefolder'])
   expect(crossSpawnMock.spawn).toHaveBeenCalledWith(
     'echo',
     ['\\\\someshare\\somefolder'],
@@ -157,16 +157,22 @@ test(`keeps backslashes`, () => {
   )
 })
 
-test(`propagates unhandled exit signal`, () => {
-  const {spawned} = testEnvSetting({FOO_ENV: 'foo=bar'}, 'FOO_ENV="foo=bar"')
+test(`propagates unhandled exit signal`, async () => {
+  const {spawned} = await testEnvSetting(
+    {FOO_ENV: 'foo=bar'},
+    'FOO_ENV="foo=bar"',
+  )
   const spawnExitCallback = spawned.on.mock.calls[0][1]
   const spawnExitCode = null
   spawnExitCallback(spawnExitCode)
   expect(process.exit).toHaveBeenCalledWith(1)
 })
 
-test(`exits cleanly with SIGINT with a null exit code`, () => {
-  const {spawned} = testEnvSetting({FOO_ENV: 'foo=bar'}, 'FOO_ENV="foo=bar"')
+test(`exits cleanly with SIGINT with a null exit code`, async () => {
+  const {spawned} = await testEnvSetting(
+    {FOO_ENV: 'foo=bar'},
+    'FOO_ENV="foo=bar"',
+  )
   const spawnExitCallback = spawned.on.mock.calls[0][1]
   const spawnExitCode = null
   const spawnExitSignal = 'SIGINT'
@@ -174,15 +180,18 @@ test(`exits cleanly with SIGINT with a null exit code`, () => {
   expect(process.exit).toHaveBeenCalledWith(0)
 })
 
-test(`propagates regular exit code`, () => {
-  const {spawned} = testEnvSetting({FOO_ENV: 'foo=bar'}, 'FOO_ENV="foo=bar"')
+test(`propagates regular exit code`, async () => {
+  const {spawned} = await testEnvSetting(
+    {FOO_ENV: 'foo=bar'},
+    'FOO_ENV="foo=bar"',
+  )
   const spawnExitCallback = spawned.on.mock.calls[0][1]
   const spawnExitCode = 0
   spawnExitCallback(spawnExitCode)
   expect(process.exit).toHaveBeenCalledWith(0)
 })
 
-function testEnvSetting(expected, ...envSettings) {
+async function testEnvSetting(expected, ...envSettings) {
   if (expected.APPDATA === 2) {
     // kill the APPDATA to test both is undefined
     const {env} = process
@@ -192,7 +201,7 @@ function testEnvSetting(expected, ...envSettings) {
     // set APPDATA and test it
     process.env.APPDATA = '0'
   }
-  const ret = crossEnv([...envSettings, 'echo', 'hello world'])
+  const ret = await crossEnv([...envSettings, 'echo', 'hello world'])
   const env = {}
   if (process.env.APPDATA) {
     env.APPDATA = process.env.APPDATA
